@@ -14,51 +14,57 @@ def execute(source: str | bytes, module: types.ModuleType):
 
 class BakedPathFinder(MetaPathFinder):
     def find_spec(self, fullname, path, target=...):
+        entries = sys.path
+        if path is not None:
+            entries.extend(path)
         # Search in default places
-        for path_entry in sys.path:
+        for path_entry in entries:
             path_entry = Path(path_entry)
 
             package_name = fullname.rsplit(".", 1)
 
             if len(package_name) == 1:
-                package_name = required_module = fullname
+                package_name = fullname
             else:
-                package_name, required_module = package_name
+                package_name, _ = package_name
 
             baked_package = Path(f"{path_entry}")
 
+            inner_module_name = fullname
+
             parts = fullname.split(".")
 
-            for part in parts:
+            for i, part in enumerate(parts):
                 baked_package /= part
 
-                if baked_package.with_name(
-                    baked_package.name + ".py.baked"
+                if baked_package.with_suffix(
+                    ".py.baked"
                 ).exists():
-                    baked_package = baked_package.with_name(
-                        baked_package.name + ".py.baked"
+                    baked_package = baked_package.with_suffix(
+                        ".py.baked"
                     )
+                    inner_module_name = ".".join(parts[i:])
                     break
 
             if baked_package.exists():
                 reader = BakedReader(baked_package)
-                location = str(baked_package.joinpath(*fullname.split(".")[1:]))
+                location = str(baked_package.joinpath(*inner_module_name.split(".")[1:]))
 
                 for module, _ in reader.modules:
-                    if module == fullname:
+                    if module == inner_module_name:
                         location += ".py"
                         break
 
                     if (
                         module.endswith("__init__")
-                        and module[: -len("__init__") - 1] == fullname
+                        and module[: -len("__init__") - 1] == inner_module_name
                     ):
                         break
                 else:
                     continue
 
                 return importlib.util.spec_from_file_location(
-                    fullname,
+                    inner_module_name,
                     location,
                     loader=BakedLoader(reader, package_name),
                 )
