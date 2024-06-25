@@ -10,6 +10,13 @@ bake_parser.add_argument(
     "-o", "--output", help="Output file name", default=None, required=False
 )
 bake_parser.add_argument(
+    "-H",
+    "--hash",
+    help="Hash content and write it to file",
+    action="store_true",
+    default=False,
+)
+bake_parser.add_argument(
     "--no-colors", help="Don't color output", action="store_true", default=False
 )
 bake_parser.add_argument(
@@ -90,7 +97,7 @@ def bake():
 
     from pybaked import PyBaker
 
-    baker = PyBaker(package_path, json.loads(args.metadata))
+    baker = PyBaker(package_path, json.loads(args.metadata), args.hash)
 
     print(
         cyan(
@@ -154,14 +161,13 @@ def read():
         )
         return -2
 
-
     baked_package = args.baked_package
 
     if not args.baked_package.endswith(".py.baked"):
         package_name = args.baked_package
         baked_package = args.baked_package + ".py.baked"
     else:
-        package_name = args.baked_package[:-len(".py.baked")]
+        package_name = args.baked_package[: -len(".py.baked")]
 
     package_path = Path(baked_package)
 
@@ -193,6 +199,11 @@ def read():
     print(
         green(f"Package {yellow(baked_package)} read successfully"), end="\n\n"
     )
+
+    print(green(f"Hash supported: {yellow(reader.hash_match is not None)}"))
+    if reader.hash_match is not None:
+        color = green if reader.hash_match else red
+        print(green(f"Hash matched: {color(reader.hash_match)}"))
 
     print(green(f"Creation date: {blue(str(reader.created))}"))
     print(green("Metadata:"))

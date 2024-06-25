@@ -63,6 +63,13 @@ class BakedPathFinder(MetaPathFinder):
             # Defining baked package reader to search module inside
             reader = self.reader_for(baked_package)
 
+            # If content hash is not matched to metadata hash - skip this baked package
+            if reader.hash_match is False:
+                self.logger.debug(
+                    f"Corrupted baked package at {baked_package} - skipping"
+                )
+                continue
+
             # Define module location
             location = str(
                 baked_package.joinpath(*inner_module_name.split(".")[1:])

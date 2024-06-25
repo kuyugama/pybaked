@@ -1,9 +1,9 @@
-import logging
-import os
-import io
 from datetime import datetime
 from pathlib import Path
 from typing import Any
+import logging
+import os
+import io
 
 from . import protocol
 
@@ -20,7 +20,10 @@ def write_content(buffer: io.BytesIO, content: bytes):
 
 class PyBaker:
     def __init__(
-        self, source_package_path: str | Path, metadata: dict[str, Any]
+        self,
+        source_package_path: str | Path,
+        metadata: dict[str, Any],
+        hash_content: bool = False,
     ) -> None:
         if isinstance(source_package_path, str):
             source_package_path = Path(source_package_path)
@@ -33,6 +36,13 @@ class PyBaker:
 
         if not isinstance(self._metadata, dict):
             raise TypeError("Metadata is not a dictionary")
+
+        if "--fh" in self._metadata:
+            raise ValueError(
+                "'--fh' name in metadata is reserved for content hash"
+            )
+
+        self._hash_content = hash_content
 
     @property
     def source_package_path(self) -> Path:
@@ -52,13 +62,11 @@ class PyBaker:
         )
         logger.debug("Written creation date to buffer")
 
-        write_content(
-            buffer,
-            protocol.serialize(self._metadata),
-        )
-        logger.debug("Written metadata to buffer")
-
         fragments = protocol.Fragments()
+
+        logger.debug(
+            f"Looking for modules to include in {self.source_package_path}"
+        )
 
         for path, dirs, files in os.walk(self.source_package_path):
             path = Path(path)
@@ -87,6 +95,19 @@ class PyBaker:
                     (".".join(parts).encode(), absolute_fp.read_bytes())
                 )
                 logger.debug(f"Including module at {absolute_fp}")
+
+        if self._hash_content:
+            self._metadata.update({"--fh": fragments.hash()})
+            logger.debug(
+                "Added to metadata hash of the fragments",
+                extra={"hash": self._metadata["--fh"]},
+            )
+
+        write_content(
+            buffer,
+            protocol.serialize(self._metadata),
+        )
+        logger.debug("Written metadata to buffer")
 
         fragments.write(buffer)
         logger.debug("Written fragmented modules to buffer")

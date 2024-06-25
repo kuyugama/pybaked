@@ -4,7 +4,7 @@ from functools import lru_cache
 from pathlib import Path
 
 from . import protocol
-
+from .errors import CorruptedContentError
 
 logger = logging.getLogger(__name__)
 
@@ -43,10 +43,6 @@ class BakedReader:
 
         self._modules_offset = self._file.tell()
 
-    @property
-    def path(self):
-        return self._path
-
     def _read_next(self) -> bytes | None:
         """
         Read next data from the file
@@ -58,6 +54,44 @@ class BakedReader:
         length = int.from_bytes(length_bytes, "little")
 
         return self._file.read(length)
+
+    def read_specific(self, offset: int) -> bytes:
+        self._file.seek(offset)
+
+        logger.debug(f"Reading data at {offset} from {self._path}")
+
+        return self._read_next()
+
+    @property
+    def path(self):
+        return self._path
+
+    @property
+    @lru_cache
+    def hash_match(self) -> bool | None:
+        """
+        Match hash written in metadata with real hash
+
+        :return: None if no hash is present in metadata, bool - hash match
+        """
+        if "--fh" not in self._metadata:
+            return
+
+        self._file.seek(self._modules_offset)
+
+        return self.real_hash == self._metadata["--fh"]
+
+    @property
+    @lru_cache
+    def real_hash(self) -> bytes:
+        """
+        Real content hash of the file
+
+        :return: hash bytes
+        """
+        self._file.seek(self._modules_offset)
+
+        return protocol.hash_fragments(self._file)
 
     @property
     def metadata(self):
@@ -115,13 +149,6 @@ class BakedReader:
         )
 
         return list(found_packages)
-
-    def read_specific(self, offset: int) -> bytes:
-        self._file.seek(offset)
-
-        logger.debug(f"Reading data at {offset} from {self._path}")
-
-        return self._read_next()
 
     def __del__(self):
         self._file.close()

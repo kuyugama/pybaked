@@ -1,0 +1,2 @@
+class CorruptedContentError(BaseException):
+    pass

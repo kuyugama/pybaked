@@ -1,3 +1,4 @@
+import hashlib
 from datetime import datetime
 from typing import Any, Callable, TypeVar
 
@@ -63,12 +64,10 @@ def list_serialize(lst: list) -> bytes:
     buffer = b""
 
     for i, element in enumerate(lst):
-        element_type = type(element).__name__
-
-        if element_type not in _types:
-            raise TypeError(f"Unsupported element type: {element_type} at {i}")
-
-        buffer += pack_message(serialize(element))
+        try:
+            buffer += pack_message(serialize(element))
+        except TypeError as e:
+            raise TypeError(f"Unsupported type for {i}") from e
 
     return pack_type(buffer, "list")
 
@@ -95,12 +94,10 @@ def dict_serialize(d: dict[str, Any]) -> bytes:
     for key, value in d.items():
         buffer += pack_message(key.encode())
 
-        value_type = type(value).__name__
-
-        if value_type not in _types:
-            raise TypeError(f"Unsupported value type: {value_type} at {key}")
-
-        buffer += pack_message(serialize(value))
+        try:
+            buffer += pack_message(serialize(value))
+        except TypeError as e:
+            raise TypeError(f"Unsupported value type for {key}") from e
 
     return pack_type(buffer, "dict")
 
@@ -157,6 +154,9 @@ def deserialize(b: bytes) -> Any:
     if type_ == "bytes":
         return data
 
+    if type_ not in _types:
+        raise TypeError(f"Unsupported data type: {type_}")
+
     _, deserialize = _types[type_]
 
     return deserialize(data)
@@ -167,6 +167,9 @@ def serialize(data: Any) -> bytes:
 
     if type_ == "bytes":
         return pack_type(data, "bytes")
+
+    if type_ not in _types:
+        raise TypeError(f"Unsupported data type: {type_}")
 
     serialize, _ = _types[type_]
 
@@ -192,7 +195,15 @@ def pack_message(message: bytes) -> bytes:
 
 class Fragments:
     def __init__(self):
-        self._fragments = []
+        self._fragments: list[tuple[bytes, bytes]] = []
+
+    def hash(self) -> bytes:
+        hash_ = hashlib.sha256()
+
+        for name, content in self._fragments:
+            hash_.update(name + content)
+
+        return hash_.digest()
 
     def add(self, fragment: tuple[bytes, bytes]):
         self._fragments.append(fragment)
@@ -222,7 +233,7 @@ def read_buffer(buffer) -> bytes:
 
     MESSAGE := 8 bytes of length + bytes of message
     :param buffer: file-like object with rb mode
-    :return:
+    :return: bytes read
     """
     length_bytes = buffer.read(8)
     if len(length_bytes) != 8:
@@ -248,6 +259,7 @@ def read_fragments(buffer) -> list[tuple[bytes, int]]:
     Where the offset is the body position of the fragment and name is the fragment name
 
     :param buffer: file-like object with rb mode
+    :return: tuples of fragment name and offset to its content
     """
 
     position = buffer.tell()
@@ -272,3 +284,20 @@ def read_fragments(buffer) -> list[tuple[bytes, int]]:
         next_offset = buffer.tell()
 
     return fragments
+
+
+def hash_fragments(buffer) -> bytes:
+    """
+    Reads all fragments and its content from file and makes hash of it.
+
+    :param buffer: file-like object with rb mode
+    """
+    hash_ = hashlib.sha256()
+    for name, offset in read_fragments(buffer):
+        hash_.update(name)
+
+        buffer.seek(offset)
+        content = read_buffer(buffer)
+        hash_.update(content)
+
+    return hash_.digest()
