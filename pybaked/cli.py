@@ -154,9 +154,14 @@ def read():
         )
         return -2
 
+
     baked_package = args.baked_package
+
     if not args.baked_package.endswith(".py.baked"):
+        package_name = args.baked_package
         baked_package = args.baked_package + ".py.baked"
+    else:
+        package_name = args.baked_package[:-len(".py.baked")]
 
     package_path = Path(baked_package)
 
@@ -170,16 +175,20 @@ def read():
         print(cyan(f"Reading {yellow(baked_package)}..."), flush=True, end="\r")
 
     reader = BakedReader(package_path)
-    modules = reader.modules
+    modules = reader.modules_dict
     packages = reader.packages[1:]
 
-    for module, offset in modules:
-        name = ".".join(module.split(".")[1:])
-        if name == args.module:
-            source = reader.read_specific(offset)
-            print(source.decode())
+    if args.module is not None:
+        module = package_name + "." + args.module
 
-            return 0
+        if module not in modules:
+            print(f"Module {args.module} not found in {baked_package}")
+            return -3
+
+        source = reader.read_specific(modules[module])
+        print(source.decode())
+
+        return 0
 
     print(
         green(f"Package {yellow(baked_package)} read successfully"), end="\n\n"
@@ -200,9 +209,9 @@ def read():
     print(
         "\n".join(
             "\t- "
-            + green("/").join(map(purple, module.split(".")[1:]))
-            + f" ({yellow('.'.join(module.split('.')[1:]))})"
-            for module, _ in modules
+            + green("/").join(map(purple, name.split(".")[1:]))
+            + f" ({yellow('.'.join(name.split('.')[1:]))})"
+            for name in modules
         ),
         "\n",
     )

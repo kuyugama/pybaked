@@ -67,27 +67,34 @@ class BakedReader:
 
     @property
     @lru_cache
+    def modules_dict(self) -> dict[str, int]:
+        return dict(self.modules)
+
+    @property
+    @lru_cache
     def modules(self) -> list[tuple[str, int]]:
-        mods = []
+        found_modules = []
 
         self._file.seek(self._modules_offset)
         fragments = protocol.read_fragments(self._file)
 
         for name, offset in fragments:
-            mods.append((self.name + "." + name.decode(), offset))
+            found_modules.append((self.name + "." + name.decode(), offset))
 
-        return mods
+        return found_modules
 
     @property
     @lru_cache
     def packages(self):
-        packs = []
+        found_packages = []
 
-        for name, _ in self.modules:
-            if name.endswith("__init__"):
-                packs.append((name[: -len("__init__") - 1]).strip("."))
+        for name in self.modules_dict:
+            name = name.rsplit(".", 1)[0]
 
-        return packs
+            if name not in found_packages:
+                found_packages.append(name)
+
+        return list(found_packages)
 
     def read_specific(self, offset: int) -> bytes:
         self._file.seek(offset)
