@@ -2,7 +2,7 @@ import json
 import time
 from argparse import ArgumentParser
 from pathlib import Path
-from typing import Any
+from typing import Any, Sequence
 
 bake_parser = ArgumentParser()
 bake_parser.add_argument("package", help="Package to bake")
@@ -109,11 +109,7 @@ def bake():
 
     filename = baker.bake_to_file(args.output)
 
-    print(
-        green(
-            f"Baked package {yellow(args.package)} into file {cyan(filename)}"
-        )
-    )
+    print(green(f"Baked package {yellow(args.package)} into file {cyan(filename)}"))
 
     return 0
 
@@ -144,6 +140,41 @@ def format_metadata(metadata: dict[str, Any]) -> str:
         lines.append(f"{key}{value}")
 
     return "\n".join(lines)
+
+
+def format_modules(modules: Sequence[str]) -> str:
+    try:
+        from asciitree import LeftAligned
+        from asciitree.drawing import BoxStyle, BOX_LIGHT
+
+        render = LeftAligned(draw=BoxStyle(gfx=BOX_LIGHT))
+
+        tree = {}
+        for module in modules:
+            package = tree
+            parts = module.split(".")
+
+            for deep, part in enumerate(parts):
+                if deep == len(parts) - 1:
+                    real = module.split(".", 1)[1]
+                    part += f" ({yellow(real)})"
+                package = package.setdefault(purple(part), {})
+
+        return green(render(tree))
+
+    except ImportError:
+        pass
+
+    modules_formatted: dict[str, str] = {}
+
+    for name in modules:
+        modules_formatted["/".join(map(purple, name.split(".")[1:]))] = yellow(
+            ".".join(name.split(".")[1:])
+        )
+
+    return "\n".join(
+        f"\t- {pretty} ({real})" for pretty, real in modules_formatted.items()
+    )
 
 
 def read():
@@ -196,9 +227,7 @@ def read():
 
         return 0
 
-    print(
-        green(f"Package {yellow(baked_package)} read successfully"), end="\n\n"
-    )
+    print(green(f"Package {yellow(baked_package)} read successfully"), end="\n\n")
 
     print(green(f"Hash supported: {yellow(reader.hash_match is not None)}"))
     if reader.hash_match is not None:
@@ -217,12 +246,4 @@ def read():
         end="\n\n",
     )
     print(green(f"Modules ({blue(len(modules))}):"))
-    print(
-        "\n".join(
-            "\t- "
-            + green("/").join(map(purple, name.split(".")[1:]))
-            + f" ({yellow('.'.join(name.split('.')[1:]))})"
-            for name in modules
-        ),
-        "\n",
-    )
+    print(format_modules(list(modules.keys())))

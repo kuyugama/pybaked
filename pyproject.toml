@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "pybaked"
-version = "0.0.6"
+version = "0.0.7"
 authors = ["kuyugama <mail.kuyugama@gmail.com>"]
 description = "Python package baking utility"
 license = "GPL-3.0-only"
@@ -12,6 +12,11 @@ baked-read = "pybaked.cli:read"
 
 [tool.poetry.dependencies]
 python = ">=3.9"
+asciitree = {version = "^0.3.3", optional = true}
+
+[tool.poetry.extras]
+asciitree = ["asciitree"]
+
 
 [build-system]
 requires = ["poetry-core"]
