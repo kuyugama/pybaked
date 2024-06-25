@@ -1,14 +1,19 @@
-import json
+import logging
 import os
 import io
 from datetime import datetime
 from pathlib import Path
-from typing import TypedDict, Any
+from typing import Any
 
 from . import protocol
 
+logger = logging.getLogger(__name__)
+
 
 def write_content(buffer: io.BytesIO, content: bytes):
+    logger.debug(
+        f"Writing {len(content)} bytes into a buffer",
+    )
     buffer.write(len(content).to_bytes(8, byteorder="little"))
     buffer.write(content)
 
@@ -38,15 +43,20 @@ class PyBaker:
         return ".py.baked"
 
     def _bake(self):
+        logger.debug(f"Started baking {self.source_package_path}")
         buffer = io.BytesIO()
+
         write_content(
             buffer,
             protocol.serialize(datetime.utcnow()),
         )
+        logger.debug("Written creation date to buffer")
+
         write_content(
             buffer,
             protocol.serialize(self._metadata),
         )
+        logger.debug("Written metadata to buffer")
 
         fragments = protocol.Fragments()
 
@@ -76,20 +86,25 @@ class PyBaker:
                 fragments.add(
                     (".".join(parts).encode(), absolute_fp.read_bytes())
                 )
+                logger.debug(f"Including module at {absolute_fp}")
 
         fragments.write(buffer)
+        logger.debug("Written fragmented modules to buffer")
+        logger.debug(f"Baked {self.source_package_path}")
 
         return buffer.getvalue()
 
-    def bake(self) -> bytes:
-        return self._bake()
+    def bake(self) -> io.BytesIO:
+        logger.debug(f"Baking {self.source_package_path} into memory")
+        return io.BytesIO(self._bake())
 
     def bake_to_file(self, filename: str = None) -> str:
-
         if filename is not None:
             filename = filename + self.format
         else:
             filename = self._source_package_path.name + self.format
+
+        logger.debug(f"Baking {self.source_package_path} into {filename} file")
 
         with open(filename, "wb") as file:
             file.write(self._bake())

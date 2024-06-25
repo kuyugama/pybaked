@@ -1,3 +1,4 @@
+import logging
 from datetime import datetime
 from functools import lru_cache
 from pathlib import Path
@@ -5,12 +6,15 @@ from pathlib import Path
 from . import protocol
 
 
-class BakedReader:
-    def __init__(self, baked_path: str | Path):
-        if not isinstance(baked_path, Path):
-            baked_path = Path(baked_path)
+logger = logging.getLogger(__name__)
 
-        self._path = baked_path
+
+class BakedReader:
+    def __init__(self, path: str | Path):
+        if not isinstance(path, Path):
+            path = Path(path)
+
+        self._path = path
 
         if not self._path.is_file() or not self._path.name.endswith(
             ".py.baked"
@@ -18,7 +22,6 @@ class BakedReader:
             raise ValueError(f"Baked file does not exist: {self._path}")
 
         self._file = self._path.open("rb")
-        self._cursor = 0
 
         data = self._read_next()
 
@@ -28,6 +31,7 @@ class BakedReader:
             )
 
         self._created = protocol.deserialize(data)
+        logger.debug(f"Read creation date from {path} => {self._created}")
 
         data = self._read_next()
 
@@ -35,21 +39,23 @@ class BakedReader:
             raise ValueError("Cannot decode baked file: metadata not found")
 
         self._metadata = protocol.deserialize(data)
+        logger.debug(f"Read metadata date from {path} => {self._metadata}")
 
-        self._modules_offset = self._cursor
+        self._modules_offset = self._file.tell()
 
     @property
     def path(self):
         return self._path
 
     def _read_next(self) -> bytes | None:
+        """
+        Read next data from the file
+        """
         length_bytes = self._file.read(8)
         if len(length_bytes) != 8:
             return None
 
         length = int.from_bytes(length_bytes, "little")
-
-        self._cursor += 8 + length
 
         return self._file.read(length)
 
@@ -75,11 +81,18 @@ class BakedReader:
     def modules(self) -> list[tuple[str, int]]:
         found_modules = []
 
+        logger.debug(f"Reading modules from {self._path}")
+
         self._file.seek(self._modules_offset)
         fragments = protocol.read_fragments(self._file)
 
         for name, offset in fragments:
             found_modules.append((self.name + "." + name.decode(), offset))
+
+        logger.debug(
+            f"Read {len(found_modules)} modules from {self._path}",
+            extra={"modules": found_modules},
+        )
 
         return found_modules
 
@@ -88,16 +101,25 @@ class BakedReader:
     def packages(self):
         found_packages = []
 
+        logger.debug(f"Defining packages for {self._path}")
+
         for name in self.modules_dict:
             name = name.rsplit(".", 1)[0]
 
             if name not in found_packages:
                 found_packages.append(name)
 
+        logger.debug(
+            f"Found {len(found_packages)} packages in {self._path}",
+            extra={"packages": found_packages},
+        )
+
         return list(found_packages)
 
     def read_specific(self, offset: int) -> bytes:
         self._file.seek(offset)
+
+        logger.debug(f"Reading data at {offset} from {self._path}")
 
         return self._read_next()
 

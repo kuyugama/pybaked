@@ -1,10 +1,14 @@
+import logging
 import importlib.util
 import sys
 import types
+from functools import lru_cache
 from importlib.abc import MetaPathFinder, Loader
 from pathlib import Path
 
 from pybaked import BakedReader
+
+module_logger = logging.getLogger(__name__)
 
 
 def execute_module(source: str | bytes, module: types.ModuleType):
@@ -13,6 +17,12 @@ def execute_module(source: str | bytes, module: types.ModuleType):
 
 
 class BakedPathFinder(MetaPathFinder):
+    logger = module_logger.getChild("BakedPathFinder")
+
+    @lru_cache(10)
+    def reader_for(self, path: Path) -> BakedReader:
+        return BakedReader(path)
+
     def find_spec(self, fullname, path, target=...):
         # Define path entries in which finder will search baked packages
         entries = sys.path
@@ -21,6 +31,10 @@ class BakedPathFinder(MetaPathFinder):
             entries.extend(path)
 
         for path_entry in entries:
+            self.logger.debug(
+                f"Lookup {path_entry} for baked package in {fullname}"
+            )
+
             # Using more convenient interface for working with path
             baked_package = Path(path_entry)
 
@@ -37,27 +51,43 @@ class BakedPathFinder(MetaPathFinder):
 
                     # Define inner module name relative to
                     inner_module_name = ".".join(parts[i:])
+
+                    self.logger.debug(
+                        f"Found baked package at {baked_package} for {fullname}(inner name: {inner_module_name})"
+                    )
                     break
             else:
                 # If package was not found - skip this path entry
                 continue
 
             # Defining baked package reader to search module inside
-            reader = BakedReader(baked_package)
+            reader = self.reader_for(baked_package)
 
             # Define module location
             location = str(
                 baked_package.joinpath(*inner_module_name.split(".")[1:])
             )
 
+            self.logger.debug(
+                f"Lookup {baked_package} for module {inner_module_name}"
+            )
+
             # If it is a normal module - add .py suffix (just in case)
             if inner_module_name in reader.modules_dict:
                 location += ".py"
 
-            # If module not found and it is not a package
+            # If module not found, and it is not a package
             # inside with this name - skip this baked package
             elif inner_module_name not in reader.packages:
+
+                self.logger.debug(
+                    f"Module {inner_module_name} not found in {baked_package} - skip this package"
+                )
                 continue
+
+            self.logger.debug(
+                f"Module {inner_module_name} found in {baked_package} - proceed loading"
+            )
 
             # Build spec for module
             return importlib.util.spec_from_file_location(
@@ -69,6 +99,8 @@ class BakedPathFinder(MetaPathFinder):
 
 
 class BakedLoader(Loader):
+    logger = module_logger.getChild("BakedLoader")
+
     def __init__(self, reader: BakedReader, inner_module_name: str):
         self.reader = reader
         self.inner_module_name = inner_module_name
@@ -77,6 +109,9 @@ class BakedLoader(Loader):
         return types.ModuleType(spec.name)
 
     def exec_module(self, module):
+        self.logger.debug(
+            f"Loading module {module.__name__} from {self.reader.path}"
+        )
         # Define what module will be read from reader.
         # If module is the package then it may be
         # package_name + .__init__ if exists module with that name
@@ -106,6 +141,9 @@ class BakedLoader(Loader):
 
         # If module not found in the package - leaving from loader
         if module_name not in self.reader.modules_dict:
+            self.logger.debug(
+                f"Module {module_name}({module.__name__}) not found in {self.reader.path}"
+            )
             return
 
         # Offset of the module source in the baked package file
@@ -114,12 +152,21 @@ class BakedLoader(Loader):
         # Source of the module
         source = self.reader.read_specific(source_offset)
 
+        self.logger.debug(f"Executing module {module_name}({module.__name__})")
+
         # Compile and execute module code
         execute_module(source, module)
+
+        self.logger.debug(
+            f"Module {module_name}({module.__name__}) successfully executed"
+        )
 
         # Install metadata read by reader to all root modules of the baked package
         # Use it to recognize baked modules in code
         if module_name.split(".")[0] == module.__package__:
+            self.logger.debug(
+                f"Installing metadata for module {module_name}({module.__name__})"
+            )
             module.__baked_metadata__ = self.reader.metadata
 
 
