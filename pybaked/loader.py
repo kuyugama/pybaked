@@ -178,4 +178,9 @@ class BakedLoader(Loader):
 
 
 def init():
+    # If already initiated - do nothing
+    for finder in sys.meta_path:
+        if isinstance(finder, BakedPathFinder):
+            return
+
     sys.meta_path.append(BakedPathFinder())
