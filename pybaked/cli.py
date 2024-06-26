@@ -26,6 +26,13 @@ bake_parser.add_argument(
     required=False,
     default="{}",
 )
+bake_parser.add_argument(
+    "-M",
+    "--metadata-file",
+    help="JSON encoded metadata file path",
+    required=False,
+    default=None,
+)
 
 read_parser = ArgumentParser()
 read_parser.add_argument(
@@ -95,9 +102,24 @@ def bake():
         print(red(f"Package {yellow(args.package)} not found"))
         return -1
 
+    metadata = json.loads(args.metadata)
+
+    if args.metadata_file is not None:
+        mf = Path(args.metadata_file)
+        if not mf.is_file():
+            print(
+                red(
+                    f"Metadata file {yellow(args.metadata_file)} is not "
+                    f"exists or is not a file"
+                )
+            )
+            return -2
+
+        metadata = json.loads(mf.read_text())
+
     from pybaked import PyBaker
 
-    baker = PyBaker(package_path, json.loads(args.metadata), args.hash)
+    baker = PyBaker(package_path, metadata, args.hash)
 
     print(
         cyan(
@@ -109,7 +131,11 @@ def bake():
 
     filename = baker.bake_to_file(args.output)
 
-    print(green(f"Baked package {yellow(args.package)} into file {cyan(filename)}"))
+    print(
+        green(
+            f"Baked package {yellow(args.package)} into file {cyan(filename)}"
+        )
+    )
 
     return 0
 
@@ -227,7 +253,9 @@ def read():
 
         return 0
 
-    print(green(f"Package {yellow(baked_package)} read successfully"), end="\n\n")
+    print(
+        green(f"Package {yellow(baked_package)} read successfully"), end="\n\n"
+    )
 
     print(green(f"Hash supported: {yellow(reader.hash_match is not None)}"))
     if reader.hash_match is not None:

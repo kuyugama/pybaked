@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "pybaked"
-version = "0.0.10"
+version = "0.0.11"
 authors = ["kuyugama <mail.kuyugama@gmail.com>"]
 description = "Python package baking utility"
 license = "GPL-3.0-only"
