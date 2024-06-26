@@ -170,7 +170,7 @@ class BakedLoader(Loader):
 
         # Install metadata read by reader to all root modules of the baked package
         # Use it to recognize baked modules in code
-        if module_name.split(".")[0] == module.__package__:
+        if module_name.split(".", 1)[0] == module_name.rsplit(".", 1)[0]:
             self.logger.debug(
                 f"Installing metadata for module {module_name}({module.__name__})"
             )
