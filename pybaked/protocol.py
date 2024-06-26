@@ -275,6 +275,9 @@ def read_fragments(buffer) -> list[tuple[bytes, int]]:
     while next_offset <= latest_name_offset:
         fragments.append((name, position + offset))
 
+        if next_offset == latest_name_offset:
+            break
+
         buffer.seek(next_offset)
 
         name = read_buffer(buffer)

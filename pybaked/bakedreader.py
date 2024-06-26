@@ -4,7 +4,7 @@ from functools import lru_cache
 from pathlib import Path
 
 from . import protocol
-from .errors import CorruptedContentError
+
 
 logger = logging.getLogger(__name__)
 
@@ -14,7 +14,7 @@ class BakedReader:
         if not isinstance(path, Path):
             path = Path(path)
 
-        self._path = path
+        self._path = path.absolute()
 
         if not self._path.is_file() or not self._path.name.endswith(
             ".py.baked"
@@ -39,7 +39,7 @@ class BakedReader:
             raise ValueError("Cannot decode baked file: metadata not found")
 
         self._metadata = protocol.deserialize(data)
-        logger.debug(f"Read metadata date from {path} => {self._metadata}")
+        logger.debug(f"Read metadata from {path} => {self._metadata}")
 
         self._modules_offset = self._file.tell()
 
@@ -76,8 +76,6 @@ class BakedReader:
         """
         if "--fh" not in self._metadata:
             return
-
-        self._file.seek(self._modules_offset)
 
         return self.real_hash == self._metadata["--fh"]
 
