@@ -51,7 +51,7 @@ baked into a file
 -M / --metadata-file - path to a metadata JSON formatted file  
 -o / --output - "baked" package name
 
-
+___
 ### Importing
 To import "baked" package you need to init loader first:
 ```python
@@ -65,7 +65,7 @@ And then, you can import "baked" packages as normal python packages:
 ```python
 import baked_package_name
 ```
-
+___
 ### ``BakedMaker``
 Class created for creating baked packages (used by ``baked-make`` tool)
 
@@ -95,8 +95,38 @@ pybaked.BakedMaker(
 )
 
 ```
-> Note: ``BakedMaker.include_module`` first parameter is a module name in 
+> **Note**: ``BakedMaker.include_module`` first parameter is a module name in 
 an import format (example: ``subpackage.module_name``)
 > 
 > For example, if you pass ``some.py`` into ``BakedMaker.include_module`` it
 will be added as ``py`` module in the ``some`` subpackage of the "baked" package
+___
+### ``BakedReader``
+Class created for reading "baked" packages (used by ``baked-read`` tool)
+
+Usage:
+```python
+import pybaked
+
+reader = pybaked.BakedReader("baked_package_name.py.baked")
+
+# Package creation date
+print("Package created at:", reader.created)
+
+# Package metadata
+print("Package metadata:", reader.metadata)
+
+# Package modules (module_name, source_offset)
+print("Package modules:", reader.modules)
+
+# Package modules as dict {module_name: source_offset}
+print("Package modules as dict:", reader.modules_dict)
+
+# Package subpackages
+print("Package subpackages:", reader.packages)
+```
+> **Note**: reader combines ``package_name`` and ``module_name`` separating by dot  
+
+For example, when ``module_name`` is a "``__init__``" and 
+``package_name`` is a "``baked_package``". 
+Then reader will return it as ``baked_package.__init__``.
