@@ -6,7 +6,7 @@ from functools import lru_cache
 from importlib.abc import MetaPathFinder, Loader
 from pathlib import Path
 
-from pybaked import BakedReader
+from pybaked import BakedReader, protocol
 
 module_logger = logging.getLogger(__name__)
 
@@ -45,7 +45,7 @@ class BakedPathFinder(MetaPathFinder):
                 baked_package /= part
 
                 # If this is baked package - use it and break loop
-                with_suffix = baked_package.with_suffix(".py.baked")
+                with_suffix = baked_package.with_suffix(protocol.EXTENSION)
                 if with_suffix.exists():
                     baked_package = with_suffix
 
@@ -88,9 +88,10 @@ class BakedPathFinder(MetaPathFinder):
             elif inner_module_name not in reader.packages:
 
                 self.logger.debug(
-                    f"Module {inner_module_name} not found in {baked_package} - skip this package"
+                    f"Module {inner_module_name} not found in {baked_package} -"
+                    f" abort searching for another packages"
                 )
-                continue
+                return None
 
             self.logger.debug(
                 f"Module {inner_module_name} found in {baked_package} - proceed loading"

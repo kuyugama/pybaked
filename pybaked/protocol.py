@@ -2,6 +2,8 @@ import hashlib
 from datetime import datetime
 from typing import Any, Callable, TypeVar
 
+EXTENSION = ".py.baked"
+
 
 def pack_type(data: bytes, type_: str) -> bytes:
     return type_.encode() + b"/" + data

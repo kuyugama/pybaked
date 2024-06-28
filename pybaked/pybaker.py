@@ -18,116 +18,140 @@ def write_content(buffer: io.BytesIO, content: bytes):
     buffer.write(content)
 
 
-class PyBaker:
-    def __init__(
-        self,
-        source_package_path: str | Path,
-        metadata: dict[str, Any],
-        hash_content: bool = False,
-    ) -> None:
-        if isinstance(source_package_path, str):
-            source_package_path = Path(source_package_path)
+def find_modules(package_path: Path):
+    modules: list[tuple[str, str]] = []
+    for dir_path, _, files in os.walk(package_path):
+        dir_path = Path(dir_path)
+        for module_file in filter(lambda name: name.endswith(".py"), files):
+            module_path = dir_path / module_file
 
-        self._source_package_path = source_package_path.absolute()
-        self._metadata = metadata
-
-        if not self._source_package_path.is_dir():
-            raise ValueError("Source package path is not a directory")
-
-        if not isinstance(self._metadata, dict):
-            raise TypeError("Metadata is not a dictionary")
-
-        if "--fh" in self._metadata:
-            raise ValueError(
-                "'--fh' name in metadata is reserved for content hash"
+            module_name = ".".join(
+                (module_path.relative_to(package_path)).with_suffix("").parts
             )
+
+            modules.append((module_name, str(module_path)))
+
+    return modules
+
+
+class BakedMaker:
+    logger = logger.getChild("BakedMaker")
+
+    @classmethod
+    def from_package(
+        cls,
+        package_path: str | Path,
+        hash_content: bool = False,
+        metadata: dict[str, Any] = None,
+    ) -> "BakedMaker":
+        if isinstance(package_path, str):
+            package_path = Path(package_path)
+
+        package_path = package_path.absolute()
+
+        if not package_path.is_dir():
+            raise ValueError("Package path is not a directory")
+
+        if not (modules := find_modules(package_path)):
+            raise ValueError("No modules found in package")
+
+        instance = cls(hash_content, metadata)
+
+        for import_name, module_file in modules:
+            cls.logger.debug(
+                f"Including '{module_file}' as '{import_name}' from '{package_path}'"
+            )
+            instance.include_module(
+                import_name.encode(), Path(module_file).read_bytes()
+            )
+
+        return instance
+
+    def __init__(
+        self, hash_content: bool = False, metadata: dict[str, Any] = None
+    ):
+        if metadata is None:
+            metadata = {}
+
+        if not isinstance(metadata, dict):
+            raise ValueError("Metadata must be a dict")
 
         self._hash_content = hash_content
+        self._metadata = metadata
 
-    @property
-    def source_package_path(self) -> Path:
-        return self._source_package_path
+        self._fragments = protocol.Fragments()
 
-    @property
-    def format(self):
-        return ".py.baked"
+    def include_module(
+        self, import_name: bytes, source_code: bytes
+    ) -> "BakedMaker":
+        self._fragments.add(
+            (
+                import_name,
+                source_code,
+            )
+        )
 
-    def _bake(self):
-        logger.debug(f"Started baking {self.source_package_path}")
+        return self
+
+    def _build_content(self) -> io.BytesIO:
+        self.logger.debug("Started building content")
         buffer = io.BytesIO()
-
+        creation_date = datetime.utcnow()
         write_content(
             buffer,
-            protocol.serialize(datetime.utcnow()),
+            protocol.serialize(
+                creation_date,
+            ),
         )
-        logger.debug("Written creation date to buffer")
-
-        fragments = protocol.Fragments()
-
-        logger.debug(
-            f"Looking for modules to include in {self.source_package_path}"
+        self.logger.debug(
+            "Creation date was written to a buffer",
+            extra={"creation_date": creation_date},
         )
-
-        for path, dirs, files in os.walk(self.source_package_path):
-            path = Path(path)
-
-            if path.name == "__pycache__":
-                continue
-
-            relative_path = path.relative_to(self.source_package_path)
-
-            for file in files:
-                if not file.endswith(".py"):
-                    continue
-
-                absolute_fp = path / file
-                relative_fp = relative_path / file
-
-                parts = relative_fp.parts[:-1] + (relative_fp.stem,)
-
-                for part in parts:
-                    if not part.isidentifier():
-                        raise NameError(
-                            f"Invalid identifier: {part} in {absolute_fp} (relative to {path}: {relative_fp}) "
-                        )
-
-                fragments.add(
-                    (".".join(parts).encode(), absolute_fp.read_bytes())
-                )
-                logger.debug(f"Including module at {absolute_fp}")
-
         if self._hash_content:
-            self._metadata.update({"--fh": fragments.hash()})
-            logger.debug(
-                "Added to metadata hash of the fragments",
-                extra={"hash": self._metadata["--fh"]},
+            fragments_hash = self._fragments.hash()
+            self._metadata.update({"--fh": fragments_hash})
+            self.logger.debug(
+                "Fragments was hashed",
+                extra={"hash": int.from_bytes(fragments_hash, "big")},
             )
 
-        write_content(
-            buffer,
-            protocol.serialize(self._metadata),
+        write_content(buffer, protocol.serialize(self._metadata))
+        self.logger.debug(
+            "Metadata was written to a buffer",
         )
-        logger.debug("Written metadata to buffer")
 
-        fragments.write(buffer)
-        logger.debug("Written fragmented modules to buffer")
-        logger.debug(f"Baked {self.source_package_path}")
+        self._fragments.write(buffer)
+        self.logger.debug("Fragments was written to a buffer")
 
-        return buffer.getvalue()
+        self.logger.debug("Building content finished")
 
-    def bake(self) -> io.BytesIO:
-        logger.debug(f"Baking {self.source_package_path} into memory")
-        return io.BytesIO(self._bake())
+        buffer.seek(0)
+        return buffer
 
-    def bake_to_file(self, filename: str = None) -> str:
-        if filename is not None:
-            filename = filename + self.format
-        else:
-            filename = self._source_package_path.name + self.format
+    def bytes(self):
+        """
+        Makes baked package in bytes from stored content
 
-        logger.debug(f"Baking {self.source_package_path} into {filename} file")
+        :return: package bytes
+        """
+        return self._build_content().read()
 
-        with open(filename, "wb") as file:
-            file.write(self._bake())
+    def file(self, filename: str | Path) -> Path:
+        """
+        Makes baked package file from stored content
+
+        :param filename: output file name
+        :return: path to file created
+        """
+        if isinstance(filename, str):
+            filename = Path(filename)
+
+        if not filename.name.endswith(protocol.EXTENSION):
+            filename = filename.with_name(
+                filename.name.split(".", 1)[0] + protocol.EXTENSION
+            )
+
+        with filename.open("wb") as f:
+            f.write(self.bytes())
 
         return filename

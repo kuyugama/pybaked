@@ -1,8 +1,9 @@
 [tool.poetry]
 name = "pybaked"
-version = "0.0.11"
+version = "0.0.12"
 authors = ["kuyugama <mail.kuyugama@gmail.com>"]
 description = "Python package baking utility"
+readme = "README.md"
 license = "GPL-3.0-only"
 repository = "https://github.com/kuyugama/pybaked"
 
@@ -13,10 +14,17 @@ baked-read = "pybaked.cli:read"
 [tool.poetry.dependencies]
 python = ">=3.9"
 asciitree = {version = "^0.3.3", optional = true}
+pytest = {version = "^8.2.2", optional = true}
 
 [tool.poetry.extras]
 asciitree = ["asciitree"]
 
+
+[tool.pytest.ini_options]
+python_functions = "test_*"
+python_files = "test_*.py"
+testpaths = "tests"
+pythonpath = ["."]
 
 [build-system]
 requires = ["poetry-core"]

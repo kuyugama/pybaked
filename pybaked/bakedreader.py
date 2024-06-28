@@ -17,7 +17,7 @@ class BakedReader:
         self._path = path.absolute()
 
         if not self._path.is_file() or not self._path.name.endswith(
-            ".py.baked"
+            protocol.EXTENSION
         ):
             raise ValueError(f"Baked file does not exist: {self._path}")
 
@@ -101,7 +101,7 @@ class BakedReader:
 
     @property
     def name(self):
-        return self._path.name[: -len(".py.baked")]
+        return self._path.name[: -len(protocol.EXTENSION)]
 
     @property
     @lru_cache

@@ -4,6 +4,8 @@ from argparse import ArgumentParser
 from pathlib import Path
 from typing import Any, Sequence
 
+from pybaked import protocol
+
 bake_parser = ArgumentParser()
 bake_parser.add_argument("package", help="Package to bake")
 bake_parser.add_argument(
@@ -117,9 +119,9 @@ def bake():
 
         metadata = json.loads(mf.read_text())
 
-    from pybaked import PyBaker
+    from pybaked import BakedMaker
 
-    baker = PyBaker(package_path, metadata, args.hash)
+    baker = BakedMaker.from_package(package_path, args.hash, metadata)
 
     print(
         cyan(
@@ -129,7 +131,7 @@ def bake():
         end="\r",
     )
 
-    filename = baker.bake_to_file(args.output)
+    filename = baker.file(args.output or package_path)
 
     print(
         green(
@@ -220,11 +222,11 @@ def read():
 
     baked_package = args.baked_package
 
-    if not args.baked_package.endswith(".py.baked"):
+    if not args.baked_package.endswith(protocol.EXTENSION):
         package_name = args.baked_package
-        baked_package = args.baked_package + ".py.baked"
+        baked_package = args.baked_package + protocol.EXTENSION
     else:
-        package_name = args.baked_package[: -len(".py.baked")]
+        package_name = args.baked_package[: -len(protocol.EXTENSION)]
 
     package_path = Path(baked_package)
 
