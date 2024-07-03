@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "pybaked"
-version = "0.0.12"
+version = "0.0.13"
 authors = ["kuyugama <mail.kuyugama@gmail.com>"]
 description = "Python package baking utility"
 readme = "README.md"
@@ -18,6 +18,7 @@ pytest = {version = "^8.2.2", optional = true}
 
 [tool.poetry.extras]
 asciitree = ["asciitree"]
+test = ["pytest"]
 
 
 [tool.pytest.ini_options]
