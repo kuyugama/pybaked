@@ -53,7 +53,7 @@ def float_serialize(f: float) -> bytes:
 
 
 def float_deserialize(b: bytes) -> float:
-    exp_bytes, real_bytes = b.split(b"-")
+    exp_bytes, real_bytes = b.split(b"-", 1)
 
     exp = 10 ** int.from_bytes(exp_bytes, "little")
 
