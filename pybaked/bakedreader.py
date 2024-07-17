@@ -2,9 +2,9 @@ import logging
 from datetime import datetime
 from functools import lru_cache
 from pathlib import Path
+from typing import Any
 
-from . import protocol
-
+from . import protocol, BakedMaker
 
 logger = logging.getLogger(__name__)
 
@@ -92,7 +92,7 @@ class BakedReader:
         return protocol.hash_fragments(self._file)
 
     @property
-    def metadata(self):
+    def metadata(self) -> dict[str, Any]:
         return self._metadata.copy()
 
     @property
@@ -147,6 +147,17 @@ class BakedReader:
         )
 
         return list(found_packages)
+
+    def to_maker(self) -> BakedMaker:
+        maker = BakedMaker("--fh" in self.metadata, self.metadata)
+
+        for module_name, source_offset in self.modules_dict.items():
+            maker.include_module(
+                module_name[len(self.name) + 1 :].encode(),
+                self.read_specific(source_offset),
+            )
+
+        return maker
 
     def __del__(self):
         self._file.close()

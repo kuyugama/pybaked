@@ -44,6 +44,14 @@ class BakedMaker:
         hash_content: bool = False,
         metadata: dict[str, Any] = None,
     ) -> "BakedMaker":
+        """
+        Lookup path for python modules and create BakedMaker instance
+        including all this modules
+        :param package_path: Path to package
+        :param hash_content: Whether to hash the content
+        :param metadata: Metadata dictionary
+        :return: The created BakedMaker instance
+        """
         if isinstance(package_path, str):
             package_path = Path(package_path)
 
@@ -81,9 +89,57 @@ class BakedMaker:
 
         self._fragments = protocol.Fragments()
 
+    def get_metadata(self) -> dict[str, Any]:
+        """
+        Get the metadata dictionary
+
+        :return: Metadata dictionary
+        """
+        return self._metadata
+
+    def set_metadata(self, metadata: dict[str, Any] = None) -> "BakedMaker":
+        """
+        Set the new metadata for this maker.
+        If metadata is None - metadata will be cleared
+
+        :param metadata: New metadata to set
+        :return: The same instance of BakedMaker
+        """
+        if metadata is None:
+            metadata = {}
+
+        self._metadata = metadata
+        return self
+
+    def update_metadata(
+        self, data: dict[str, Any] = None, **values: Any
+    ) -> "BakedMaker":
+        """
+        Update metadata for this maker with the new values.
+
+        :param data: The dictionary that will be used to update the metadata
+        :param values: Keywords that will update the metadata
+        :return: The same instance of BakedMaker
+        """
+        if data is None:
+            data = values
+        else:
+            data.update(values)
+
+        self._metadata.update(data)
+
+        return self
+
     def include_module(
         self, import_name: bytes, source_code: bytes
     ) -> "BakedMaker":
+        """
+        Include module in BakedMaker
+
+        :param import_name: Module name if import format (example: baked_package.module_name)
+        :param source_code: Module source code
+        :return: The same instance of BakedMaker
+        """
         self._fragments.add(
             (
                 import_name,
@@ -130,7 +186,7 @@ class BakedMaker:
 
     def bytes(self):
         """
-        Makes baked package in bytes from stored content
+        Make baked package in bytes from stored content
 
         :return: package bytes
         """
@@ -138,7 +194,7 @@ class BakedMaker:
 
     def file(self, filename: str | Path) -> Path:
         """
-        Makes baked package file from stored content
+        Make baked package file from stored content
 
         :param filename: output file name
         :return: path to file created
