@@ -244,7 +244,9 @@ def read():
     packages = reader.packages[1:]
 
     if args.module is not None:
-        module = package_name + "." + args.module
+        module = args.module
+        if not module.startswith(reader.name):
+            module = reader.name + "." + module
 
         if module not in modules:
             print(f"Module {args.module} not found in {baked_package}")
