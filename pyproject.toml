@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "pybaked"
-version = "0.0.16"
+version = "0.0.17"
 authors = ["kuyugama <mail.kuyugama@gmail.com>"]
 description = "Python package baking utility"
 readme = "README.md"
@@ -10,6 +10,7 @@ repository = "https://github.com/kuyugama/pybaked"
 [tool.poetry.scripts]
 baked-make = "pybaked.cli:bake"
 baked-read = "pybaked.cli:read"
+baked-unpack = "pybaked.cli:unpack"
 
 [tool.poetry.dependencies]
 python = ">=3.9"

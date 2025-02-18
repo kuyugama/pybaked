@@ -1,40 +1,9 @@
-import json
-import time
-from argparse import ArgumentParser
+from . import colors
+from .. import protocol
 from pathlib import Path
-from typing import Any, Sequence
-
-from pybaked import protocol
-
-bake_parser = ArgumentParser()
-bake_parser.add_argument("package", help="Package to bake")
-bake_parser.add_argument(
-    "-o", "--output", help="Output file name", default=None, required=False
-)
-bake_parser.add_argument(
-    "-H",
-    "--hash",
-    help="Hash content and write it to file",
-    action="store_true",
-    default=False,
-)
-bake_parser.add_argument(
-    "--no-colors", help="Don't color output", action="store_true", default=False
-)
-bake_parser.add_argument(
-    "-m",
-    "--metadata",
-    help="JSON encoded metadata",
-    required=False,
-    default="{}",
-)
-bake_parser.add_argument(
-    "-M",
-    "--metadata-file",
-    help="JSON encoded metadata file path",
-    required=False,
-    default=None,
-)
+from typing import Sequence, Any
+from argparse import ArgumentParser
+from .colors import green, yellow, purple, red, cyan, blue
 
 read_parser = ArgumentParser()
 read_parser.add_argument(
@@ -51,95 +20,6 @@ read_parser.add_argument(
 read_parser.add_argument(
     "--no-colors", help="Don't color output", action="store_true", default=False
 )
-
-USE_COLORS = True
-
-
-def color(s: str, code: int) -> str:
-    if not USE_COLORS:
-        return str(s)
-
-    s = str(s)
-
-    if "\x1b[0m" in s:
-        s = s.replace("\033[0m", f"\033[{code}m")
-
-    return f"\033[{code}m{s}\033[0m"
-
-
-def red(s: Any) -> str:
-    return color(s, 31)
-
-
-def green(s: Any) -> str:
-    return color(s, 32)
-
-
-def yellow(s: Any) -> str:
-    return color(s, 33)
-
-
-def cyan(s: Any) -> str:
-    return color(s, 36)
-
-
-def blue(s: Any) -> str:
-    return color(s, 34)
-
-
-def purple(s: Any) -> str:
-    return color(s, 35)
-
-
-def bake():
-    args = bake_parser.parse_args()
-
-    if args.no_colors:
-        global USE_COLORS
-        USE_COLORS = False
-
-    package_path = Path(args.package)
-
-    if not package_path.is_dir():
-        print(red(f"Package {yellow(args.package)} not found"))
-        return -1
-
-    metadata = json.loads(args.metadata)
-
-    if args.metadata_file is not None:
-        mf = Path(args.metadata_file)
-        if not mf.is_file():
-            print(
-                red(
-                    f"Metadata file {yellow(args.metadata_file)} is not "
-                    f"exists or is not a file"
-                )
-            )
-            return -2
-
-        metadata = json.loads(mf.read_text())
-
-    from pybaked import BakedMaker
-
-    baker = BakedMaker.from_package(package_path, args.hash, metadata)
-
-    print(
-        cyan(
-            f"Baking {yellow(args.package)} as {yellow(args.output or package_path.name)}..."
-        ),
-        flush=True,
-        end="\r",
-    )
-
-    filename = baker.file(args.output or package_path)
-
-    print(
-        green(
-            f"Baked package {yellow(args.package)} into file {cyan(filename)}"
-        )
-    )
-
-    return 0
 
 
 def format_metadata(metadata: dict[str, Any]) -> str:
@@ -170,6 +50,7 @@ def format_metadata(metadata: dict[str, Any]) -> str:
     return "\n".join(lines)
 
 
+# noinspection PyPackageRequirements,PyUnresolvedReferences
 def format_modules(modules: Sequence[str]) -> str:
     try:
         from asciitree import LeftAligned
@@ -209,8 +90,7 @@ def read():
     args = read_parser.parse_args()
 
     if args.no_colors or args.module is not None:
-        global USE_COLORS
-        USE_COLORS = False
+        colors.USE_COLORS = False
 
     if args.baked_package.endswith(".py"):
         print(
@@ -223,10 +103,7 @@ def read():
     baked_package = args.baked_package
 
     if not args.baked_package.endswith(protocol.EXTENSION):
-        package_name = args.baked_package
         baked_package = args.baked_package + protocol.EXTENSION
-    else:
-        package_name = args.baked_package[: -len(protocol.EXTENSION)]
 
     package_path = Path(baked_package)
 
